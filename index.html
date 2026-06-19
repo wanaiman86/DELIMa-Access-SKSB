@@ -983,18 +983,22 @@
             <span>Jumlah kelas</span>
           </div>
         </div>
-        <div class="import-box">
-          <div class="field">
-            <label for="csvInput">Import CSV</button>
-            <input type="file" id="csvFile"f" accept=".csv" hidden>
-          </div> id="output"></div>
-          <div class="tools">
-            <button class="btn warn" id="importBtn" type="button">Import</button>
-            <button class="btn secondary" id="clearCsvBtn" type="button">Kosongkan</button>
-          </div>
-        </div>
-      </aside>
-      </div>
+     <div class="field">
+    <label for="csvFile">Import CSV</label>
+    <input type="file" id="csvFile" accept=".csv" hidden>
+</div>
+
+<div id="output"></div>
+
+<div class="tools">
+    <button class="btn warn" id="importBtn" type="button">
+        Import
+    </button>
+
+    <button class="btn secondary" id="clearCsvBtn" type="button">
+        Kosongkan
+    </button>
+</div>
 
       <section class="table-panel" aria-label="Senarai rekod murid">
       <div class="table-head">
@@ -1468,7 +1472,8 @@
       button.addEventListener("click", () => switchView(button.dataset.view));
     });
     els.themeBtn.addEventListener("click", () => {
-      document.body.classList.toggle("dark-mode");
+     document.getElementById("importBtn").addEventListener("click", () => {
+    document.getElementById("csvFile").click();
     });
 
     saveRecords();
