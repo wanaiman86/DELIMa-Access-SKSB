@@ -78,6 +78,14 @@
       background: #f3f5f7;
       color: #96a2b3;
       border-color: #e1e8ef;
+      cursor: default;
+    }
+
+    .class-chip.selected {
+      background: linear-gradient(135deg, #2b7cff, #1769e8);
+      color: #ffffff;
+      border-color: transparent;
+      box-shadow: 0 8px 18px rgba(43,124,255,0.18);
     }
 
   </style>
@@ -246,6 +254,8 @@
 
     let records = loadRecords();
     let adminUnlocked = false;
+    // selected classes for multi-select filter (store normalized names)
+    let selectedClasses = new Set();
 
     function loadRecords() {
       const saved = localStorage.getItem(storageKey);
@@ -272,15 +282,21 @@
         .replaceAll("&", "&amp;")
         .replaceAll("<", "&lt;")
         .replaceAll(">", "&gt;")
-        .replaceAll('\"', "&quot;")
+        .replaceAll('"', "&quot;")
         .replaceAll("'", "&#039;");
     }
 
     function getFilteredRecords() {
       const query = normalize(els.adminSearch.value);
-      const selectedClass = normalize(els.classFilter.value);
+      const selectedClassSingle = normalize(els.classFilter ? els.classFilter.value : "");
       return records.filter((record) => {
-        const matchesClass = !selectedClass || normalize(record.className) === selectedClass;
+        const clsNorm = normalize(record.className);
+        let matchesClass = true;
+        if (selectedClasses.size > 0) {
+          matchesClass = selectedClasses.has(clsNorm);
+        } else if (selectedClassSingle) {
+          matchesClass = clsNorm === selectedClassSingle;
+        }
         const haystack = [
           record.name,
           record.className,
@@ -293,48 +309,91 @@
     }
 
     function renderClassFilter() {
-      const current = els.classFilter.value;
+      const current = els.classFilter ? els.classFilter.value : "";
       const classes = [...new Set(records.map((record) => record.className).filter(Boolean))]
         .sort((a, b) => a.localeCompare(b, "ms"));
-      els.classFilter.innerHTML = '<option value="">Semua kelas</option>';
-      classes.forEach((className) => {
-        const option = document.createElement("option");
-        option.value = className;
-        option.textContent = className;
-        els.classFilter.append(option);
-      });
-      els.classFilter.value = classes.includes(current) ? current : "";
+      if (els.classFilter) {
+        els.classFilter.innerHTML = '<option value="">Semua kelas</option>';
+        classes.forEach((className) => {
+          const option = document.createElement("option");
+          option.value = className;
+          option.textContent = className;
+          els.classFilter.append(option);
+        });
+        els.classFilter.value = classes.includes(current) ? current : "";
+      }
     }
 
     function renderClassPanel() {
-      // desired explicit order
-      const ordered = [
+      // preferred order to sort by
+      const preferred = [
         '1 Bijak','1 Pintar','2 Bijak','2 Pintar','3 Bijak','3 Pintar',
         '4 Bijak','4 Pintar','5 Bijak','5 Pintar','6 Bijak','6 Pintar'
       ];
-      const existing = new Set(records.map(r => r.className).filter(Boolean));
+
+      // build classes present from data
+      const classesPresent = [...new Set(records.map(r => r.className).filter(Boolean))];
+      // sort classesPresent by preferred order, extras alphabetically after
+      classesPresent.sort((a,b) => {
+        const ia = preferred.indexOf(a);
+        const ib = preferred.indexOf(b);
+        if (ia === -1 && ib === -1) return a.localeCompare(b, 'ms');
+        if (ia === -1) return 1;
+        if (ib === -1) return -1;
+        return ia - ib;
+      });
+
+      // counts per class
+      const counts = records.reduce((m, r) => {
+        if (!r.className) return m;
+        m[r.className] = (m[r.className] || 0) + 1;
+        return m;
+      }, {});
+
       const panel = els.classPanel;
       panel.innerHTML = '<h3>Senarai Kelas</h3>';
 
       const list = document.createElement('div');
       list.className = 'class-list';
 
-      ordered.forEach(className => {
+      classesPresent.forEach(className => {
         const chip = document.createElement('button');
         chip.type = 'button';
         chip.className = 'class-chip';
-        chip.textContent = className;
-        if (!existing.has(className)) {
-          chip.disabled = true;
-        } else {
-          chip.addEventListener('click', () => {
-            els.classFilter.value = className;
-            render();
-            panel.hidden = true;
-          });
-        }
+        const count = counts[className] || 0;
+        chip.textContent = `${className} (${count})`;
+        chip.dataset.className = className;
+        const norm = normalize(className);
+        if (selectedClasses.has(norm)) chip.classList.add('selected');
+        chip.addEventListener('click', () => {
+          // toggle selection for multi-select
+          if (selectedClasses.has(norm)) {
+            selectedClasses.delete(norm);
+            chip.classList.remove('selected');
+          } else {
+            selectedClasses.add(norm);
+            chip.classList.add('selected');
+          }
+          // clear single select to avoid confusion
+          if (els.classFilter) els.classFilter.value = '';
+          render();
+        });
         list.appendChild(chip);
       });
+
+      // also include any preferred classes not present (disabled) if you still want visibility
+      const missing = preferred.filter(p => !classesPresent.includes(p));
+      if (missing.length) {
+        // show them as disabled chips at the end so user sees full structure
+        missing.forEach(className => {
+          const chip = document.createElement('button');
+          chip.type = 'button';
+          chip.className = 'class-chip';
+          chip.disabled = true;
+          chip.textContent = `${className} (0)`;
+          list.appendChild(chip);
+        });
+      }
 
       panel.appendChild(list);
 
@@ -346,7 +405,8 @@
       clearBtn.className = 'btn secondary';
       clearBtn.textContent = 'Tunjukkan Semua';
       clearBtn.addEventListener('click', () => {
-        els.classFilter.value = '';
+        selectedClasses.clear();
+        if (els.classFilter) els.classFilter.value = '';
         render();
         panel.hidden = true;
       });
@@ -370,9 +430,18 @@
       els.totalClasses.textContent = new Set(records.map((record) => record.className).filter(Boolean)).size;
       const query = els.adminSearch.value.trim();
       const selectedClass = els.classFilter.value;
-      els.activeFilter.textContent = query || selectedClass
-        ? `Tapis: ${[query, selectedClass].filter(Boolean).join(" / ")}`
-        : "Memaparkan semua rekod";
+
+      // activeFilter should show selected chips (multi) or single select
+      if (selectedClasses.size > 0) {
+        const sel = Array.from(selectedClasses).join(', ');
+        els.activeFilter.textContent = `Tapis: ${sel}`;
+      } else if (query || selectedClass) {
+        els.activeFilter.textContent = query || selectedClass
+          ? `Tapis: ${[query, selectedClass].filter(Boolean).join(" / ")}`
+          : "Memaparkan semua rekod";
+      } else {
+        els.activeFilter.textContent = "Memaparkan semua rekod";
+      }
       renderLookupResult(false);
     }
 
