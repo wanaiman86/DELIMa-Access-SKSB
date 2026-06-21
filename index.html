@@ -203,6 +203,8 @@
 
   <script>
     const storageKey = "sk-sibugal-besar-delima-records";
+    const selectedKey = "sk-sibugal-selected-classes";
+
     function makeId() {
       if (window.crypto && typeof window.crypto.randomUUID === "function") {
         return window.crypto.randomUUID();
@@ -249,13 +251,36 @@
       mykidField: document.querySelector("#mykidField"),
       noteField: document.querySelector("#noteField"),
       classBtn: document.querySelector("#classBtn"),
-      classPanel: document.querySelector("#classPanel")
+      classPanel: document.querySelector("#classPanel"),
+      exportBtn: document.querySelector("#exportBtn")
     };
 
     let records = loadRecords();
     let adminUnlocked = false;
     // selected classes for multi-select filter (store normalized names)
     let selectedClasses = new Set();
+
+    // load selected classes from localStorage
+    function loadSelectedClasses() {
+      try {
+        const raw = localStorage.getItem(selectedKey);
+        if (!raw) return;
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) {
+          selectedClasses = new Set(arr.map(s => normalize(s)));
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    function saveSelectedClasses() {
+      try {
+        localStorage.setItem(selectedKey, JSON.stringify(Array.from(selectedClasses)));
+      } catch (e) {
+        // ignore
+      }
+    }
 
     function loadRecords() {
       const saved = localStorage.getItem(storageKey);
@@ -374,6 +399,8 @@
             selectedClasses.add(norm);
             chip.classList.add('selected');
           }
+          // persist selection
+          saveSelectedClasses();
           // clear single select to avoid confusion
           if (els.classFilter) els.classFilter.value = '';
           render();
@@ -406,6 +433,7 @@
       clearBtn.textContent = 'Tunjukkan Semua';
       clearBtn.addEventListener('click', () => {
         selectedClasses.clear();
+        saveSelectedClasses();
         if (els.classFilter) els.classFilter.value = '';
         render();
         panel.hidden = true;
@@ -474,6 +502,22 @@
       return tr;
     }
 
+    // export CSV for current filtered records
+    function exportCsv(recordsToExport) {
+      const headers = ['nama','kelas','id_delima','mykid','catatan'];
+      const rows = recordsToExport.map(r => [r.name, r.className, r.delimaId, r.mykid || '', r.note || '']);
+      const csv = [headers, ...rows].map(r => r.map(cell => `"${String(cell).replace(/"/g,'""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `delima-export-${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
     // other helper functions (renderLookupResult, copyDelima, openEditDialog, deleteRecord, etc.)
     // For brevity these are not repeated here; existing implementations are preserved in the file.
 
@@ -493,7 +537,16 @@
       }
     });
 
-    // initialize app
+    // wire export button
+    if (els.exportBtn) {
+      els.exportBtn.addEventListener('click', () => {
+        const toExport = getFilteredRecords();
+        exportCsv(toExport);
+      });
+    }
+
+    // initialize: load selected classes and render
+    loadSelectedClasses();
     render();
 
   </script>
