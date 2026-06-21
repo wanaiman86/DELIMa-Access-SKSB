@@ -44,7 +44,7 @@
       position: absolute;
       right: 18px;
       top: 110px;
-      max-width: 320px;
+      max-width: 360px;
       background: rgba(255,255,255,0.98);
       border: 1px solid var(--line);
       border-radius: 8px;
@@ -56,10 +56,6 @@
     .class-panel h3 {
       margin: 0 0 8px;
       font-size: 0.98rem;
-    }
-
-    .class-group {
-      margin-bottom: 10px;
     }
 
     .class-list {
@@ -76,6 +72,12 @@
       border: 1px solid #b7d8f4;
       cursor: pointer;
       font-size: 0.9rem;
+    }
+
+    .class-chip[disabled] {
+      background: #f3f5f7;
+      color: #96a2b3;
+      border-color: #e1e8ef;
     }
 
   </style>
@@ -270,7 +272,7 @@
         .replaceAll("&", "&amp;")
         .replaceAll("<", "&lt;")
         .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
+        .replaceAll('\"', "&quot;")
         .replaceAll("'", "&#039;");
     }
 
@@ -305,43 +307,37 @@
     }
 
     function renderClassPanel() {
-      // group by grade (first token before space)
-      const classes = [...new Set(records.map(r => r.className).filter(Boolean))]
-        .sort((a,b) => a.localeCompare(b,'ms'));
-      const groups = {};
-      classes.forEach(cn => {
-        const grade = cn.split(' ')[0];
-        if (!groups[grade]) groups[grade] = [];
-        groups[grade].push(cn);
-      });
-
+      // desired explicit order
+      const ordered = [
+        '1 Bijak','1 Pintar','2 Bijak','2 Pintar','3 Bijak','3 Pintar',
+        '4 Bijak','4 Pintar','5 Bijak','5 Pintar','6 Bijak','6 Pintar'
+      ];
+      const existing = new Set(records.map(r => r.className).filter(Boolean));
       const panel = els.classPanel;
       panel.innerHTML = '<h3>Senarai Kelas</h3>';
-      Object.keys(groups).sort().forEach(grade => {
-        const div = document.createElement('div');
-        div.className = 'class-group';
-        const h = document.createElement('div');
-        h.textContent = `Tingkatan ${grade}`;
-        h.style.fontWeight = '700';
-        h.style.marginBottom = '6px';
-        div.appendChild(h);
-        const list = document.createElement('div');
-        list.className = 'class-list';
-        groups[grade].forEach(className => {
-          const chip = document.createElement('button');
-          chip.type = 'button';
-          chip.className = 'class-chip';
-          chip.textContent = className;
+
+      const list = document.createElement('div');
+      list.className = 'class-list';
+
+      ordered.forEach(className => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'class-chip';
+        chip.textContent = className;
+        if (!existing.has(className)) {
+          chip.disabled = true;
+        } else {
           chip.addEventListener('click', () => {
             els.classFilter.value = className;
             render();
             panel.hidden = true;
           });
-          list.appendChild(chip);
-        });
-        div.appendChild(list);
-        panel.appendChild(div);
+        }
+        list.appendChild(chip);
       });
+
+      panel.appendChild(list);
+
       // add clear button
       const clear = document.createElement('div');
       clear.style.marginTop = '8px';
