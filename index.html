@@ -44,7 +44,7 @@
       position: absolute;
       right: 18px;
       top: 110px;
-      max-width: 360px;
+      max-width: 320px;
       background: rgba(255,255,255,0.98);
       border: 1px solid var(--line);
       border-radius: 8px;
@@ -56,6 +56,10 @@
     .class-panel h3 {
       margin: 0 0 8px;
       font-size: 0.98rem;
+    }
+
+    .class-group {
+      margin-bottom: 10px;
     }
 
     .class-list {
@@ -72,20 +76,6 @@
       border: 1px solid #b7d8f4;
       cursor: pointer;
       font-size: 0.9rem;
-    }
-
-    .class-chip[disabled] {
-      background: #f3f5f7;
-      color: #96a2b3;
-      border-color: #e1e8ef;
-      cursor: default;
-    }
-
-    .class-chip.selected {
-      background: linear-gradient(135deg, #2b7cff, #1769e8);
-      color: #ffffff;
-      border-color: transparent;
-      box-shadow: 0 8px 18px rgba(43,124,255,0.18);
     }
 
   </style>
@@ -203,8 +193,6 @@
 
   <script>
     const storageKey = "sk-sibugal-besar-delima-records";
-    const selectedKey = "sk-sibugal-selected-classes";
-
     function makeId() {
       if (window.crypto && typeof window.crypto.randomUUID === "function") {
         return window.crypto.randomUUID();
@@ -251,36 +239,11 @@
       mykidField: document.querySelector("#mykidField"),
       noteField: document.querySelector("#noteField"),
       classBtn: document.querySelector("#classBtn"),
-      classPanel: document.querySelector("#classPanel"),
-      exportBtn: document.querySelector("#exportBtn")
+      classPanel: document.querySelector("#classPanel")
     };
 
     let records = loadRecords();
     let adminUnlocked = false;
-    // selected classes for multi-select filter (store normalized names)
-    let selectedClasses = new Set();
-
-    // load selected classes from localStorage
-    function loadSelectedClasses() {
-      try {
-        const raw = localStorage.getItem(selectedKey);
-        if (!raw) return;
-        const arr = JSON.parse(raw);
-        if (Array.isArray(arr)) {
-          selectedClasses = new Set(arr.map(s => normalize(s)));
-        }
-      } catch (e) {
-        // ignore
-      }
-    }
-
-    function saveSelectedClasses() {
-      try {
-        localStorage.setItem(selectedKey, JSON.stringify(Array.from(selectedClasses)));
-      } catch (e) {
-        // ignore
-      }
-    }
 
     function loadRecords() {
       const saved = localStorage.getItem(storageKey);
@@ -313,15 +276,9 @@
 
     function getFilteredRecords() {
       const query = normalize(els.adminSearch.value);
-      const selectedClassSingle = normalize(els.classFilter ? els.classFilter.value : "");
+      const selectedClass = normalize(els.classFilter.value);
       return records.filter((record) => {
-        const clsNorm = normalize(record.className);
-        let matchesClass = true;
-        if (selectedClasses.size > 0) {
-          matchesClass = selectedClasses.has(clsNorm);
-        } else if (selectedClassSingle) {
-          matchesClass = clsNorm === selectedClassSingle;
-        }
+        const matchesClass = !selectedClass || normalize(record.className) === selectedClass;
         const haystack = [
           record.name,
           record.className,
@@ -334,96 +291,57 @@
     }
 
     function renderClassFilter() {
-      const current = els.classFilter ? els.classFilter.value : "";
+      const current = els.classFilter.value;
       const classes = [...new Set(records.map((record) => record.className).filter(Boolean))]
         .sort((a, b) => a.localeCompare(b, "ms"));
-      if (els.classFilter) {
-        els.classFilter.innerHTML = '<option value="">Semua kelas</option>';
-        classes.forEach((className) => {
-          const option = document.createElement("option");
-          option.value = className;
-          option.textContent = className;
-          els.classFilter.append(option);
-        });
-        els.classFilter.value = classes.includes(current) ? current : "";
-      }
+      els.classFilter.innerHTML = '<option value="">Semua kelas</option>';
+      classes.forEach((className) => {
+        const option = document.createElement("option");
+        option.value = className;
+        option.textContent = className;
+        els.classFilter.append(option);
+      });
+      els.classFilter.value = classes.includes(current) ? current : "";
     }
 
     function renderClassPanel() {
-      // preferred order to sort by
-      const preferred = [
-        '1 Bijak','1 Pintar','2 Bijak','2 Pintar','3 Bijak','3 Pintar',
-        '4 Bijak','4 Pintar','5 Bijak','5 Pintar','6 Bijak','6 Pintar'
-      ];
-
-      // build classes present from data
-      const classesPresent = [...new Set(records.map(r => r.className).filter(Boolean))];
-      // sort classesPresent by preferred order, extras alphabetically after
-      classesPresent.sort((a,b) => {
-        const ia = preferred.indexOf(a);
-        const ib = preferred.indexOf(b);
-        if (ia === -1 && ib === -1) return a.localeCompare(b, 'ms');
-        if (ia === -1) return 1;
-        if (ib === -1) return -1;
-        return ia - ib;
+      // group by grade (first token before space)
+      const classes = [...new Set(records.map(r => r.className).filter(Boolean))]
+        .sort((a,b) => a.localeCompare(b,'ms'));
+      const groups = {};
+      classes.forEach(cn => {
+        const grade = cn.split(' ')[0];
+        if (!groups[grade]) groups[grade] = [];
+        groups[grade].push(cn);
       });
-
-      // counts per class
-      const counts = records.reduce((m, r) => {
-        if (!r.className) return m;
-        m[r.className] = (m[r.className] || 0) + 1;
-        return m;
-      }, {});
 
       const panel = els.classPanel;
       panel.innerHTML = '<h3>Senarai Kelas</h3>';
-
-      const list = document.createElement('div');
-      list.className = 'class-list';
-
-      classesPresent.forEach(className => {
-        const chip = document.createElement('button');
-        chip.type = 'button';
-        chip.className = 'class-chip';
-        const count = counts[className] || 0;
-        chip.textContent = `${className} (${count})`;
-        chip.dataset.className = className;
-        const norm = normalize(className);
-        if (selectedClasses.has(norm)) chip.classList.add('selected');
-        chip.addEventListener('click', () => {
-          // toggle selection for multi-select
-          if (selectedClasses.has(norm)) {
-            selectedClasses.delete(norm);
-            chip.classList.remove('selected');
-          } else {
-            selectedClasses.add(norm);
-            chip.classList.add('selected');
-          }
-          // persist selection
-          saveSelectedClasses();
-          // clear single select to avoid confusion
-          if (els.classFilter) els.classFilter.value = '';
-          render();
-        });
-        list.appendChild(chip);
-      });
-
-      // also include any preferred classes not present (disabled) if you still want visibility
-      const missing = preferred.filter(p => !classesPresent.includes(p));
-      if (missing.length) {
-        // show them as disabled chips at the end so user sees full structure
-        missing.forEach(className => {
+      Object.keys(groups).sort().forEach(grade => {
+        const div = document.createElement('div');
+        div.className = 'class-group';
+        const h = document.createElement('div');
+        h.textContent = `Tingkatan ${grade}`;
+        h.style.fontWeight = '700';
+        h.style.marginBottom = '6px';
+        div.appendChild(h);
+        const list = document.createElement('div');
+        list.className = 'class-list';
+        groups[grade].forEach(className => {
           const chip = document.createElement('button');
           chip.type = 'button';
           chip.className = 'class-chip';
-          chip.disabled = true;
-          chip.textContent = `${className} (0)`;
+          chip.textContent = className;
+          chip.addEventListener('click', () => {
+            els.classFilter.value = className;
+            render();
+            panel.hidden = true;
+          });
           list.appendChild(chip);
         });
-      }
-
-      panel.appendChild(list);
-
+        div.appendChild(list);
+        panel.appendChild(div);
+      });
       // add clear button
       const clear = document.createElement('div');
       clear.style.marginTop = '8px';
@@ -432,9 +350,7 @@
       clearBtn.className = 'btn secondary';
       clearBtn.textContent = 'Tunjukkan Semua';
       clearBtn.addEventListener('click', () => {
-        selectedClasses.clear();
-        saveSelectedClasses();
-        if (els.classFilter) els.classFilter.value = '';
+        els.classFilter.value = '';
         render();
         panel.hidden = true;
       });
@@ -458,18 +374,9 @@
       els.totalClasses.textContent = new Set(records.map((record) => record.className).filter(Boolean)).size;
       const query = els.adminSearch.value.trim();
       const selectedClass = els.classFilter.value;
-
-      // activeFilter should show selected chips (multi) or single select
-      if (selectedClasses.size > 0) {
-        const sel = Array.from(selectedClasses).join(', ');
-        els.activeFilter.textContent = `Tapis: ${sel}`;
-      } else if (query || selectedClass) {
-        els.activeFilter.textContent = query || selectedClass
-          ? `Tapis: ${[query, selectedClass].filter(Boolean).join(" / ")}`
-          : "Memaparkan semua rekod";
-      } else {
-        els.activeFilter.textContent = "Memaparkan semua rekod";
-      }
+      els.activeFilter.textContent = query || selectedClass
+        ? `Tapis: ${[query, selectedClass].filter(Boolean).join(" / ")}`
+        : "Memaparkan semua rekod";
       renderLookupResult(false);
     }
 
@@ -502,32 +409,6 @@
       return tr;
     }
 
-    // helper to get original class display name from normalized value
-    function originalClassName(norm) {
-      const found = records.find(r => normalize(r.className) === norm);
-      return found ? found.className : norm;
-    }
-
-    // export CSV for current filtered records (single file)
-    function exportCsv(recordsToExport, filename) {
-      const headers = ['nama','kelas','id_delima','mykid','catatan'];
-      const rows = recordsToExport.map(r => [r.name, r.className, r.delimaId, r.mykid || '', r.note || '']);
-      const csv = [headers, ...rows].map(r => r.map(cell => `"${String(cell).replace(/"/g,'""')}"`).join(',')).join('\n');
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename || `delima-export-${new Date().toISOString().slice(0,10)}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }
-
-    function sanitizeForFilename(s) {
-      return String(s).trim().replace(/[^0-9a-zA-Z _-]/g, '').replace(/\s+/g, '-');
-    }
-
     // other helper functions (renderLookupResult, copyDelima, openEditDialog, deleteRecord, etc.)
     // For brevity these are not repeated here; existing implementations are preserved in the file.
 
@@ -547,30 +428,7 @@
       }
     });
 
-    // wire export button
-    if (els.exportBtn) {
-      els.exportBtn.addEventListener('click', () => {
-        // if there are selected classes, export one file per selected class
-        if (selectedClasses.size > 0) {
-          // build mapping of normalized -> original class name
-          const norms = Array.from(selectedClasses);
-          norms.forEach(norm => {
-            const orig = originalClassName(norm) || norm;
-            const classRecords = records.filter(r => normalize(r.className) === norm);
-            const date = new Date().toISOString().slice(0,10);
-            const fileName = `delima-export-${sanitizeForFilename(orig)}-${date}.csv`;
-            exportCsv(classRecords, fileName);
-          });
-        } else {
-          // single export for current filtered result
-          const toExport = getFilteredRecords();
-          exportCsv(toExport, `delima-export-${new Date().toISOString().slice(0,10)}.csv`);
-        }
-      });
-    }
-
-    // initialize: load selected classes and render
-    loadSelectedClasses();
+    // initialize app
     render();
 
   </script>
