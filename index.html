@@ -502,8 +502,14 @@
       return tr;
     }
 
-    // export CSV for current filtered records
-    function exportCsv(recordsToExport) {
+    // helper to get original class display name from normalized value
+    function originalClassName(norm) {
+      const found = records.find(r => normalize(r.className) === norm);
+      return found ? found.className : norm;
+    }
+
+    // export CSV for current filtered records (single file)
+    function exportCsv(recordsToExport, filename) {
       const headers = ['nama','kelas','id_delima','mykid','catatan'];
       const rows = recordsToExport.map(r => [r.name, r.className, r.delimaId, r.mykid || '', r.note || '']);
       const csv = [headers, ...rows].map(r => r.map(cell => `"${String(cell).replace(/"/g,'""')}"`).join(',')).join('\n');
@@ -511,11 +517,15 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `delima-export-${new Date().toISOString().slice(0,10)}.csv`;
+      a.download = filename || `delima-export-${new Date().toISOString().slice(0,10)}.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+    }
+
+    function sanitizeForFilename(s) {
+      return String(s).trim().replace(/[^0-9a-zA-Z _-]/g, '').replace(/\s+/g, '-');
     }
 
     // other helper functions (renderLookupResult, copyDelima, openEditDialog, deleteRecord, etc.)
@@ -540,8 +550,22 @@
     // wire export button
     if (els.exportBtn) {
       els.exportBtn.addEventListener('click', () => {
-        const toExport = getFilteredRecords();
-        exportCsv(toExport);
+        // if there are selected classes, export one file per selected class
+        if (selectedClasses.size > 0) {
+          // build mapping of normalized -> original class name
+          const norms = Array.from(selectedClasses);
+          norms.forEach(norm => {
+            const orig = originalClassName(norm) || norm;
+            const classRecords = records.filter(r => normalize(r.className) === norm);
+            const date = new Date().toISOString().slice(0,10);
+            const fileName = `delima-export-${sanitizeForFilename(orig)}-${date}.csv`;
+            exportCsv(classRecords, fileName);
+          });
+        } else {
+          // single export for current filtered result
+          const toExport = getFilteredRecords();
+          exportCsv(toExport, `delima-export-${new Date().toISOString().slice(0,10)}.csv`);
+        }
       });
     }
 
