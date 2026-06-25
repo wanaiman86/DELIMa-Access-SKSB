@@ -155,6 +155,16 @@
       box-shadow: 0 0 0 4px rgba(16, 163, 127, 0.22), 0 0 18px rgba(0, 184, 217, 0.75);
     }
 
+    .status-dot.loading {
+      background: var(--gold);
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
     .nav-copy strong {
       display: block;
       font-size: 0.98rem;
@@ -618,7 +628,7 @@
       gap: 16px;
       background:
         linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(239, 248, 255, 0.84)),
-        url("data:image/svg+xml,%3Csvg width='520' height='360' viewBox='0 0 520 360' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='520' height='360' fill='%23f8fbff'/%3E%3Cg fill='none' stroke-linecap='round'%3E%3Cpath d='M70 282h86c26 0 38-25 64-25h76c28 0 39-61 72-61h76' stroke='%2300b8d9' stroke-width='12' opacity='.20'/%3E%3Cpath d='M74 88h70c24 0 32 44 58 44h92c26 0 35-26 60-26h92' stroke='%230077c8' stroke-width='10' opacity='.20'/%3E%3Cpath d='M112 232h42M185 232h82M330 232h78' stroke='%2310a37f' stroke-width='13' opacity='.22'/%3E%3C/g%3E%3Cg fill='%230077c8' opacity='.13'%3E%3Ccircle cx='104' cy='88' r='14'/%3E%3Ccircle cx='252' cy='132' r='18'/%3E%3Ccircle cx='392' cy='106' r='15'/%3E%3Ccircle cx='444' cy='196' r='18'/%3E%3C/g%3E%3Cg fill='%23f5c400' opacity='.34'%3E%3Crect x='84' y='168' width='72' height='12' rx='6'/%3E%3Crect x='180' y='168' width='42' height='12' rx='6'/%3E%3Crect x='332' y='270' width='96' height='12' rx='6'/%3E%3C/g%3E%3C/svg%3E");
+        url("data:image/svg+xml,%3Csvg width='520' height='360' viewBox='0 0 520 360' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='520' height='360' fill='%23f8fbff'/%3E%3Cg fill='none' st[...]
       background-size: cover;
       background-position: center;
       border-top: 4px solid var(--gold);
@@ -947,8 +957,8 @@
 
     <section class="admin-panel" id="adminView" hidden aria-label="Ruang admin">
       <div class="status-pill" aria-live="polite">
-        <span class="status-dot"></span>
-        <span id="saveStatus">Data disimpan dalam pelayar</span>
+        <span class="status-dot" id="statusDot"></span>
+        <span id="saveStatus">Memuat data dari Google Sheet...</span>
       </div>
 
       <div class="admin-tools">
@@ -966,7 +976,7 @@
         <div class="tools">
           <button class="btn" id="addBtn" type="button" title="Tambah murid">+ Tambah murid</button>
           <button class="btn secondary" id="exportBtn" type="button" title="Muat turun CSV">Eksport CSV</button>
-          <button class="btn secondary" id="sampleBtn" type="button" title="Muat semula contoh">Data contoh</button>
+          <button class="btn secondary" id="syncBtn" type="button" title="Segerak dengan Google Sheet">🔄 Segerak</button>
           <button class="btn danger" id="clearBtn" type="button" title="Padam semua rekod">Padam semua</button>
         </div>
       </div>
@@ -998,83 +1008,79 @@
           </div>
         </div>
       </aside>
-      </div>
+    </section>
 
-      <section class="table-panel" aria-label="Senarai rekod murid">
+    <div class="table-panel" id="adminTableView" hidden>
       <div class="table-head">
-        <h2 class="section-title">Senarai rekod</h2>
-        <span class="subtitle" id="activeFilter">Memaparkan semua rekod</span>
+        <h2 style="margin:0; flex: 1;">Senarai Murid</h2>
       </div>
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>Nama murid</th>
+              <th>Nama</th>
               <th>Kelas</th>
               <th>ID Delima</th>
               <th>MyKid</th>
               <th>Catatan</th>
-              <th><span class="sr-only">Tindakan</span></th>
+              <th>Tindakan</th>
             </tr>
           </thead>
           <tbody id="studentRows"></tbody>
         </table>
-        <div class="empty" id="emptyState" hidden>Tiada rekod sepadan ditemui.</div>
+        <div id="emptyState" class="empty">Tiada rekod</div>
       </div>
-      </section>
-    </section>
+    </div>
   </main>
 
+  <div id="toast" class="toast" aria-live="assertive"></div>
+
   <dialog id="studentDialog">
-    <form class="dialog-inner" method="dialog" id="studentForm">
-      <h2 class="section-title" id="dialogTitle">Tambah murid</h2>
-      <input type="hidden" id="recordId">
-      <div class="form-grid">
-        <div class="field wide">
-          <label for="nameField">Nama murid</label>
-          <input id="nameField" required>
+    <div class="dialog-inner">
+      <h2 id="dialogTitle">Tambah Murid</h2>
+      <form id="studentForm">
+        <input type="hidden" id="recordId">
+        <div class="form-grid">
+          <div class="field wide">
+            <label for="nameField">Nama</label>
+            <input id="nameField" type="text" required>
+          </div>
+          <div class="field">
+            <label for="classField">Kelas</label>
+            <input id="classField" type="text" required>
+          </div>
+          <div class="field">
+            <label for="delimaField">ID Delima</label>
+            <input id="delimaField" type="text" required>
+          </div>
+          <div class="field">
+            <label for="mykidField">MyKid</label>
+            <input id="mykidField" type="text" required>
+          </div>
+          <div class="field wide">
+            <label for="noteField">Catatan</label>
+            <textarea id="noteField"></textarea>
+          </div>
         </div>
-        <div class="field">
-          <label for="classField">Kelas</label>
-          <input id="classField" required>
+        <div class="dialog-actions">
+          <button type="button" class="btn secondary" onclick="document.getElementById('studentDialog').close()">Tutup</button>
+          <button type="submit" class="btn">Simpan</button>
         </div>
-        <div class="field">
-          <label for="delimaField">ID Delima</label>
-          <input id="delimaField" required>
-        </div>
-        <div class="field">
-          <label for="mykidField">MyKid</label>
-          <input id="mykidField">
-        </div>
-        <div class="field">
-          <label for="noteField">Catatan</label>
-          <input id="noteField" placeholder="Aktif / pindah / perlu semakan">
-        </div>
-      </div>
-      <div class="dialog-actions">
-        <button class="btn secondary" value="cancel" type="button" id="cancelDialogBtn">Batal</button>
-        <button class="btn" value="default" type="submit">Simpan</button>
-      </div>
-    </form>
+      </form>
+    </div>
   </dialog>
 
-  <div class="toast" id="toast" role="status" aria-live="polite"></div>
-
   <script>
-    const storageKey = "sk-sibugal-besar-delima-records";
-    function makeId() {
-      if (window.crypto && typeof window.crypto.randomUUID === "function") {
-        return window.crypto.randomUUID();
-      }
-      return `id-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    }
-
+    // ========== CONFIGURATION ==========
+    // Replace with your Google Sheet CSV export URL
+    const GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/export?format=csv";
+    const storageKey = "delimaRecords";
     const sampleRecords = [
-      { id: makeId(), name: "Nur Aina Binti Rahman", className: "1 Bestari", delimaId: "m-10010001", mykid: "190101120001", note: "Contoh" },
-      { id: makeId(), name: "Muhammad Aiman Bin Salleh", className: "2 Cekal", delimaId: "m-10010002", mykid: "180214120045", note: "Contoh" },
-      { id: makeId(), name: "Siti Balqis Binti Jamal", className: "3 Damai", delimaId: "m-10010003", mykid: "170922120088", note: "Contoh" },
-      { id: makeId(), name: "Daniel Hakimi Bin Osman", className: "4 Amanah", delimaId: "m-10010004", mykid: "160507120019", note: "Contoh" },
-      { id: makeId(), name: "Nurul Iman Binti Azmi", className: "5 Bestari", delimaId: "m-10010005", mykid: "150311120077", note: "Contoh" },
+      { id: makeId(), name: "Ahmad bin Abdullah", className: "5 Bestari", delimaId: "m-10010001", mykid: "061231101234", note: "Contoh" },
+      { id: makeId(), name: "Siti binti Hassan", className: "5 Bestari", delimaId: "m-10010002", mykid: "061231101235", note: "Contoh" },
+      { id: makeId(), name: "Mohamed bin Ali", className: "6 Cekal", delimaId: "m-10010003", mykid: "051231101236", note: "Contoh" },
+      { id: makeId(), name: "Nur Aini binti Karim", className: "6 Cekal", delimaId: "m-10010004", mykid: "051231101237", note: "Contoh" },
+      { id: makeId(), name: "Fatimah binti Ibrahim", className: "4 Rajin", delimaId: "m-10010005", mykid: "071231101238", note: "Contoh" },
       { id: makeId(), name: "Adam Irfan Bin Karim", className: "6 Cekal", delimaId: "m-10010006", mykid: "140706120030", note: "Contoh" }
     ];
 
@@ -1097,6 +1103,7 @@
       carianView: document.querySelector("#carianView"),
       panduanView: document.querySelector("#panduanView"),
       adminView: document.querySelector("#adminView"),
+      adminTableView: document.querySelector("#adminTableView"),
       themeBtn: document.querySelector("#themeBtn"),
       toast: document.querySelector("#toast"),
       dialog: document.querySelector("#studentDialog"),
@@ -1107,26 +1114,140 @@
       classField: document.querySelector("#classField"),
       delimaField: document.querySelector("#delimaField"),
       mykidField: document.querySelector("#mykidField"),
-      noteField: document.querySelector("#noteField")
+      noteField: document.querySelector("#noteField"),
+      syncBtn: document.querySelector("#syncBtn"),
+      statusDot: document.querySelector("#statusDot")
     };
 
-    let records = loadRecords();
+    let records = [];
     let adminUnlocked = false;
+    let dataLoaded = false;
 
-    function loadRecords() {
-      const saved = fetch(https://docs.google.com/spreadsheets/d/e/2PACX-1vSAvPrR_nNzjYnX1f5zeWpoJkyRp_kyGC7W-qjWpGNnF6m1j3U440uYVZLvwYd-XwyVQXhBO9BB1IUE/pub?output=csv.getItem(storageKey);
-      if (!saved) return sampleRecords;
+    // ========== INITIALIZATION ==========
+    async function init() {
+      loadTheme();
+      await loadRecordsFromGoogleSheet();
+      setupEventListeners();
+      renderAdmin();
+      showToast("Datos ay handa na");
+    }
+
+    // ========== GOOGLE SHEET DATA LOADING ==========
+    async function loadRecordsFromGoogleSheet() {
       try {
-        const parsed = JSON.parse(saved);
-        return Array.isArray(parsed) ? parsed : sampleRecords;
-      } catch {
-        return sampleRecords;
+        updateStatusDot(true, "Memuat");
+        els.saveStatus.textContent = "Memuat data dari Google Sheet...";
+
+        // Try to fetch from Google Sheet
+        const response = await fetch(GOOGLE_SHEET_URL);
+        if (!response.ok) throw new Error("Failed to fetch");
+
+        const csv = await response.text();
+        const parsed = parseCSV(csv);
+
+        if (parsed.length > 0) {
+          records = parsed;
+          sessionStorage.setItem(storageKey, JSON.stringify(records));
+          els.saveStatus.textContent = "Data disegerakkan dari Google Sheet";
+          updateStatusDot(false, "Online");
+          dataLoaded = true;
+        } else {
+          throw new Error("No data from sheet");
+        }
+      } catch (error) {
+        console.warn("Google Sheet fetch failed, using cached data:", error);
+        
+        // Fallback to cached data
+        const cached = sessionStorage.getItem(storageKey);
+        if (cached) {
+          try {
+            records = JSON.parse(cached);
+            els.saveStatus.textContent = "Data dari cache (offline)";
+          } catch {
+            records = [...sampleRecords];
+            els.saveStatus.textContent = "Menggunakan data contoh";
+          }
+        } else {
+          records = [...sampleRecords];
+          els.saveStatus.textContent = "Menggunakan data contoh";
+        }
+        
+        updateStatusDot(false, "Offline");
+        dataLoaded = true;
       }
     }
 
-    function saveRecords() {
-      localStorage.setItem(storageKey, JSON.stringify(records));
-      els.saveStatus.textContent = "Perubahan telah disimpan";
+    function parseCSV(csv) {
+      const lines = csv.trim().split('\n');
+      if (lines.length < 2) return [];
+
+      const headers = lines[0].toLowerCase().split(',').map(h => h.trim());
+      const nameIdx = headers.indexOf('nama');
+      const classIdx = headers.indexOf('kelas');
+      const delimaIdx = headers.indexOf('id_delima');
+      const mykidIdx = headers.indexOf('mykid');
+      const noteIdx = headers.indexOf('catatan');
+
+      if (nameIdx === -1 || classIdx === -1) return [];
+
+      const result = [];
+      for (let i = 1; i < lines.length; i++) {
+        const parts = lines[i].split(',').map(p => p.trim());
+        if (parts[nameIdx]) {
+          result.push({
+            id: makeId(),
+            name: parts[nameIdx] || '',
+            className: parts[classIdx] || '',
+            delimaId: parts[delimaIdx] || '',
+            mykid: parts[mykidIdx] || '',
+            note: parts[noteIdx] || ''
+          });
+        }
+      }
+      return result;
+    }
+
+    function updateStatusDot(isLoading, text) {
+      if (isLoading) {
+        els.statusDot.classList.add('loading');
+      } else {
+        els.statusDot.classList.remove('loading');
+      }
+    }
+
+    // ========== MANUAL SYNC FUNCTION ==========
+    async function syncWithGoogleSheet() {
+      els.syncBtn.disabled = true;
+      try {
+        updateStatusDot(true, "Segerak");
+        els.saveStatus.textContent = "Sedang segerak...";
+        
+        const response = await fetch(GOOGLE_SHEET_URL);
+        if (!response.ok) throw new Error("Failed to fetch");
+
+        const csv = await response.text();
+        const parsed = parseCSV(csv);
+
+        if (parsed.length > 0) {
+          records = parsed;
+          sessionStorage.setItem(storageKey, JSON.stringify(records));
+          els.saveStatus.textContent = "Data disegerakkan dengan berjaya dari Google Sheet";
+          showToast("Segerak berjaya!");
+          renderAdmin();
+        }
+      } catch (error) {
+        console.error("Sync error:", error);
+        els.saveStatus.textContent = "Gagal segerak dengan Google Sheet";
+        showToast("Gagal segerak. Periksa sambungan internet.");
+      } finally {
+        updateStatusDot(false, "Ready");
+        els.syncBtn.disabled = false;
+      }
+    }
+
+    // ========== UTILITY FUNCTIONS ==========
+    function makeId() {
+      return Date.now().toString(36) + Math.random().toString(36).substr(2);
     }
 
     function normalize(value) {
@@ -1172,331 +1293,248 @@
     function renderLookupResult(showEmpty = false) {
       const query = normalize(els.search.value);
       if (!query) {
-        els.lookupResult.innerHTML = "";
+        els.lookupResult.innerHTML = '';
         return;
       }
+
       const record = findLookupRecord();
-      if (!record) {
-        els.lookupResult.innerHTML = showEmpty
-          ? '<div class="result-card"><h3>Rekod tidak ditemui</h3><p class="subtitle">Sila semak nombor kad pengenalan atau hubungi admin sekolah.</p></div>'
-          : "";
-        return;
-      }
-      els.lookupResult.innerHTML = `
-        <div class="result-card">
-          <h3>Maklumat Murid</h3>
-          <dl class="result-list">
-            <div><dt>Nama</dt><dd>${escapeHtml(record.name)}</dd></div>
-            <div><dt>Kelas</dt><dd>${escapeHtml(record.className)}</dd></div>
-            <div><dt>ID Delima</dt><dd><span class="id-badge">${escapeHtml(record.delimaId)}</span></dd></div>
-            <div><dt>MyKid</dt><dd>${escapeHtml(record.mykid || "-")}</dd></div>
-            <div><dt>Catatan</dt><dd>${escapeHtml(record.note || "-")}</dd></div>
-          </dl>
-          <button class="btn secondary" type="button" id="copyLookupBtn">Salin ID Delima</button>
-        </div>
-      `;
-      document.querySelector("#copyLookupBtn").addEventListener("click", () => copyDelima(record.delimaId));
-    }
-
-    function renderClassFilter() {
-      const current = els.classFilter.value;
-      const classes = [...new Set(records.map((record) => record.className).filter(Boolean))]
-        .sort((a, b) => a.localeCompare(b, "ms"));
-      els.classFilter.innerHTML = '<option value="">Semua kelas</option>';
-      classes.forEach((className) => {
-        const option = document.createElement("option");
-        option.value = className;
-        option.textContent = className;
-        els.classFilter.append(option);
-      });
-      els.classFilter.value = classes.includes(current) ? current : "";
-    }
-
-    function render() {
-      renderClassFilter();
-      const filtered = getFilteredRecords();
-      els.rows.innerHTML = "";
-      filtered
-        .sort((a, b) => a.name.localeCompare(b.name, "ms"))
-        .forEach((record) => els.rows.append(createRow(record)));
-
-      els.empty.hidden = filtered.length > 0;
-      els.counter.textContent = `${filtered.length} rekod`;
-      els.adminCounter.textContent = `${filtered.length} rekod`;
-      els.totalStudents.textContent = records.length;
-      els.totalClasses.textContent = new Set(records.map((record) => record.className).filter(Boolean)).size;
-      const query = els.adminSearch.value.trim();
-      const selectedClass = els.classFilter.value;
-      els.activeFilter.textContent = query || selectedClass
-        ? `Tapis: ${[query, selectedClass].filter(Boolean).join(" / ")}`
-        : "Memaparkan semua rekod";
-      renderLookupResult(false);
-    }
-
-    function createRow(record) {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td></td>
-        <td></td>
-        <td><span class="id-badge"></span></td>
-        <td></td>
-        <td></td>
-        <td>
-          <div class="row-actions">
-            <button class="icon-btn" type="button" title="Salin ID Delima" aria-label="Salin ID Delima">⧉</button>
-            <button class="icon-btn" type="button" title="Edit rekod" aria-label="Edit rekod">✎</button>
-            <button class="icon-btn" type="button" title="Padam rekod" aria-label="Padam rekod">×</button>
+      if (record) {
+        els.lookupResult.innerHTML = `
+          <div class="result-card">
+            <h3>Maklumat Murid</h3>
+            <div class="result-list">
+              <div><dt>Nama:</dt><dd>${escapeHtml(record.name)}</dd></div>
+              <div><dt>Kelas:</dt><dd>${escapeHtml(record.className)}</dd></div>
+              <div><dt>ID Delima:</dt><dd><span class="id-badge">${escapeHtml(record.delimaId)}</span></dd></div>
+              <div><dt>MyKid:</dt><dd>${escapeHtml(record.mykid)}</dd></div>
+              ${record.note ? `<div><dt>Catatan:</dt><dd>${escapeHtml(record.note)}</dd></div>` : ''}
+            </div>
           </div>
-        </td>
-      `;
-      const cells = tr.querySelectorAll("td");
-      cells[0].textContent = record.name;
-      cells[1].textContent = record.className;
-      tr.querySelector(".id-badge").textContent = record.delimaId;
-      cells[3].textContent = record.mykid || "-";
-      cells[4].textContent = record.note || "-";
-      const [copyBtn, editBtn, deleteBtn] = tr.querySelectorAll("button");
-      copyBtn.addEventListener("click", () => copyDelima(record.delimaId));
-      editBtn.addEventListener("click", () => openDialog(record));
-      deleteBtn.addEventListener("click", () => deleteRecord(record.id));
-      return tr;
-    }
-
-    async function copyDelima(delimaId) {
-      try {
-        await navigator.clipboard.writeText(delimaId);
-        showToast(`ID Delima disalin: ${delimaId}`);
-      } catch {
-        showToast(`ID Delima: ${delimaId}`);
-      }
-    }
-
-    function openDialog(record) {
-      const isEdit = Boolean(record);
-      els.dialogTitle.textContent = isEdit ? "Edit murid" : "Tambah murid";
-      els.recordId.value = record?.id || "";
-      els.nameField.value = record?.name || "";
-      els.classField.value = record?.className || "";
-      els.delimaField.value = record?.delimaId || "";
-      els.mykidField.value = record?.mykid || "";
-      els.noteField.value = record?.note || "";
-      els.dialog.showModal();
-      els.nameField.focus();
-    }
-
-    function upsertRecord(event) {
-      event.preventDefault();
-      const payload = {
-        id: els.recordId.value || makeId(),
-        name: els.nameField.value.trim(),
-        className: els.classField.value.trim(),
-        delimaId: els.delimaField.value.trim(),
-        mykid: els.mykidField.value.trim(),
-        note: els.noteField.value.trim()
-      };
-      if (!payload.name || !payload.className || !payload.delimaId) return;
-      const existingIndex = records.findIndex((record) => record.id === payload.id);
-      if (existingIndex >= 0) {
-        records[existingIndex] = payload;
+        `;
+      } else if (showEmpty) {
+        els.lookupResult.innerHTML = '<div class="empty">Tiada rekod ditemui</div>';
       } else {
-        records.push(payload);
+        els.lookupResult.innerHTML = '';
       }
-      saveRecords();
-      render();
-      els.dialog.close();
-      showToast("Rekod murid disimpan");
+    }
+
+    function renderAdmin() {
+      const filtered = getFilteredRecords();
+      els.adminCounter.textContent = `${filtered.length} rekod`;
+      els.totalStudents.textContent = new Set(records.map(r => r.name)).size;
+      els.totalClasses.textContent = new Set(records.map(r => r.className)).size;
+
+      // Populate class filter
+      const classes = [...new Set(records.map(r => r.className))].sort();
+      const existingClasses = Array.from(els.classFilter.querySelectorAll('option')).map(o => o.value).slice(1);
+      if (JSON.stringify(classes) !== JSON.stringify(existingClasses)) {
+        while (els.classFilter.options.length > 1) els.classFilter.remove(1);
+        classes.forEach(cls => {
+          const opt = document.createElement('option');
+          opt.value = cls;
+          opt.textContent = cls;
+          els.classFilter.appendChild(opt);
+        });
+      }
+
+      // Render table
+      if (filtered.length === 0) {
+        els.rows.innerHTML = '';
+        els.empty.style.display = 'block';
+      } else {
+        els.empty.style.display = 'none';
+        els.rows.innerHTML = filtered.map(record => `
+          <tr>
+            <td>${escapeHtml(record.name)}</td>
+            <td>${escapeHtml(record.className)}</td>
+            <td><span class="id-badge">${escapeHtml(record.delimaId)}</span></td>
+            <td>${escapeHtml(record.mykid)}</td>
+            <td>${escapeHtml(record.note)}</td>
+            <td>
+              <div class="row-actions">
+                <button class="icon-btn" onclick="editRecord('${record.id}')" title="Edit">✎</button>
+                <button class="icon-btn" onclick="deleteRecord('${record.id}')" title="Padam" style="color:#d43f3a">✕</button>
+              </div>
+            </td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    function editRecord(id) {
+      const record = records.find(r => r.id === id);
+      if (!record) return;
+
+      els.dialogTitle.textContent = 'Edit Murid';
+      els.recordId.value = record.id;
+      els.nameField.value = record.name;
+      els.classField.value = record.className;
+      els.delimaField.value = record.delimaId;
+      els.mykidField.value = record.mykid;
+      els.noteField.value = record.note;
+      els.dialog.showModal();
     }
 
     function deleteRecord(id) {
-      const record = records.find((item) => item.id === id);
-      if (!record) return;
-      const ok = confirm(`Padam rekod ${record.name}?`);
-      if (!ok) return;
-      records = records.filter((item) => item.id !== id);
-      saveRecords();
-      render();
-      showToast("Rekod dipadam");
-    }
-
-    function parseCsvLine(line) {
-      const result = [];
-      let value = "";
-      let quoted = false;
-      for (let index = 0; index < line.length; index += 1) {
-        const char = line[index];
-        const next = line[index + 1];
-        if (char === '"' && quoted && next === '"') {
-          value += '"';
-          index += 1;
-        } else if (char === '"') {
-          quoted = !quoted;
-        } else if (char === "," && !quoted) {
-          result.push(value.trim());
-          value = "";
-        } else {
-          value += char;
-        }
+      if (confirm('Padam rekod ini?')) {
+        records = records.filter(r => r.id !== id);
+        sessionStorage.setItem(storageKey, JSON.stringify(records));
+        renderAdmin();
+        showToast("Rekod telah dipadamkan");
       }
-      result.push(value.trim());
-      return result;
-    }
-
-    function importCsv() {
-      const lines = els.csvInput.value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-      if (lines.length === 0) {
-        showToast("Tiada data CSV untuk diimport");
-        return;
-      }
-      const header = parseCsvLine(lines[0]).map(normalize);
-      const hasHeader = ["nama", "name"].some((key) => header.includes(key));
-      const dataLines = hasHeader ? lines.slice(1) : lines;
-      const imported = dataLines.map((line) => {
-        const columns = parseCsvLine(line);
-        if (hasHeader) {
-          const valueAt = (...keys) => {
-            const index = keys.map((key) => header.indexOf(key)).find((pos) => pos >= 0);
-            return index >= 0 ? columns[index] : "";
-          };
-          return {
-            id: makeId(),
-            name: valueAt("nama", "name"),
-            className: valueAt("kelas", "class", "className"),
-            delimaId: valueAt("id_delima", "delima", "delimaid", "id delima"),
-            mykid: valueAt("mykid", "no_mykid", "nombor mykid"),
-            note: valueAt("catatan", "note", "nota")
-          };
-        }
-        return {
-          id: makeId(),
-          name: columns[0] || "",
-          className: columns[1] || "",
-          delimaId: columns[2] || "",
-          mykid: columns[3] || "",
-          note: columns[4] || ""
-        };
-      }).filter((record) => record.name && record.className && record.delimaId);
-
-      if (imported.length === 0) {
-        showToast("CSV tidak mempunyai rekod lengkap");
-        return;
-      }
-      records = [...records, ...imported];
-      saveRecords();
-      render();
-      showToast(`${imported.length} rekod diimport`);
-    }
-
-    async function importCsvFile() {
-      const file = els.csvFileInput.files?.[0];
-      if (!file) return;
-      if (!file.name.toLowerCase().endsWith(".csv")) {
-        showToast("Sila pilih fail CSV");
-        els.csvFileInput.value = "";
-        return;
-      }
-      try {
-        els.csvInput.value = await file.text();
-        importCsv();
-        els.csvFileInput.value = "";
-      } catch {
-        showToast("Fail CSV tidak dapat dibaca");
-      }
-    }
-
-    function exportCsv() {
-      const rows = [["nama", "kelas", "id_delima", "mykid", "catatan"], ...records.map((record) => [
-        record.name,
-        record.className,
-        record.delimaId,
-        record.mykid,
-        record.note
-      ])];
-      const csv = rows.map((row) => row.map(escapeCsv).join(",")).join("\n");
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "id-delima-sk-sibugal-besar.csv";
-      link.click();
-      URL.revokeObjectURL(url);
-      showToast("Fail CSV disediakan");
-    }
-
-    function escapeCsv(value) {
-      const text = String(value || "");
-      return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
     }
 
     function showToast(message) {
       els.toast.textContent = message;
-      els.toast.classList.add("show");
-      clearTimeout(showToast.timer);
-      showToast.timer = setTimeout(() => els.toast.classList.remove("show"), 2400);
+      els.toast.classList.add('show');
+      setTimeout(() => els.toast.classList.remove('show'), 3000);
     }
 
-    function switchView(viewName) {
-      if (viewName === "admin" && !adminUnlocked) {
-        const password = prompt("Masukkan kata laluan Admin:");
-        if (password !== "2036") {
-          showToast("Kata laluan Admin tidak tepat");
-          return;
-        }
-        adminUnlocked = true;
-        showToast("Akses Admin dibuka");
+    function loadTheme() {
+      if (localStorage.getItem('theme') === 'dark') {
+        document.body.classList.add('dark-mode');
       }
-      els.carianView.hidden = viewName !== "carian";
-      els.panduanView.hidden = viewName !== "panduan";
-      els.adminView.hidden = viewName !== "admin";
-      document.querySelectorAll("[data-view]").forEach((button) => {
-        button.classList.toggle("active", button.dataset.view === viewName);
+    }
+
+    function saveTheme() {
+      if (document.body.classList.contains('dark-mode')) {
+        localStorage.setItem('theme', 'dark');
+      } else {
+        localStorage.removeItem('theme');
+      }
+    }
+
+    // ========== EVENT LISTENERS ==========
+    function setupEventListeners() {
+      // Navigation
+      document.querySelectorAll('[data-view]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          document.querySelectorAll('[data-view]').forEach(b => b.classList.remove('active'));
+          e.target.classList.add('active');
+          
+          els.carianView.hidden = e.target.dataset.view !== 'carian';
+          els.panduanView.hidden = e.target.dataset.view !== 'panduan';
+          els.adminView.hidden = e.target.dataset.view !== 'admin';
+          els.adminTableView.hidden = e.target.dataset.view !== 'admin';
+
+          if (e.target.dataset.view === 'admin' && !adminUnlocked) {
+            const pin = prompt('Masukkan PIN admin:');
+            if (pin !== '1234') {
+              alert('PIN salah');
+              document.querySelector('[data-view="carian"]').click();
+              return;
+            }
+            adminUnlocked = true;
+          }
+        });
       });
-      if (viewName === "admin") {
-        els.adminSearch.focus();
-      } else if (viewName === "carian") {
-        els.search.focus();
-      }
+
+      // Theme
+      els.themeBtn.addEventListener('click', () => {
+        document.body.classList.toggle('dark-mode');
+        saveTheme();
+      });
+
+      // Lookup
+      els.lookupForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        renderLookupResult(true);
+      });
+      els.search.addEventListener('input', () => renderLookupResult());
+
+      // Admin search
+      els.adminSearch.addEventListener('input', renderAdmin);
+      els.classFilter.addEventListener('change', renderAdmin);
+
+      // Admin buttons
+      document.getElementById('addBtn').addEventListener('click', () => {
+        els.dialogTitle.textContent = 'Tambah Murid';
+        els.recordId.value = '';
+        els.form.reset();
+        els.dialog.showModal();
+      });
+
+      els.form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const id = els.recordId.value;
+        const newRecord = {
+          id: id || makeId(),
+          name: els.nameField.value,
+          className: els.classField.value,
+          delimaId: els.delimaField.value,
+          mykid: els.mykidField.value,
+          note: els.noteField.value
+        };
+
+        if (id) {
+          const idx = records.findIndex(r => r.id === id);
+          if (idx !== -1) records[idx] = newRecord;
+        } else {
+          records.push(newRecord);
+        }
+
+        sessionStorage.setItem(storageKey, JSON.stringify(records));
+        els.dialog.close();
+        renderAdmin();
+        showToast(id ? "Rekod dikemas kini" : "Rekod ditambah");
+      });
+
+      document.getElementById('exportBtn').addEventListener('click', () => {
+        const csv = ['nama,kelas,id_delima,mykid,catatan'];
+        records.forEach(r => {
+          csv.push(`"${r.name}","${r.className}","${r.delimaId}","${r.mykid}","${r.note}"`);
+        });
+        const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `delima-${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+
+      document.getElementById('syncBtn').addEventListener('click', syncWithGoogleSheet);
+
+      document.getElementById('clearBtn').addEventListener('click', () => {
+        if (confirm('Padam semua rekod?')) {
+          records = [];
+          sessionStorage.setItem(storageKey, JSON.stringify(records));
+          renderAdmin();
+          showToast("Semua rekod telah dipadamkan");
+        }
+      });
+
+      document.getElementById('importBtn').addEventListener('click', () => {
+        const csv = els.csvInput.value;
+        if (!csv.trim()) return showToast("Masukkan data CSV");
+
+        const parsed = parseCSV(csv);
+        if (parsed.length === 0) return showToast("Format CSV tidak sah");
+
+        records.push(...parsed);
+        sessionStorage.setItem(storageKey, JSON.stringify(records));
+        els.csvInput.value = '';
+        renderAdmin();
+        showToast(`${parsed.length} rekod telah diimport`);
+      });
+
+      document.getElementById('clearCsvBtn').addEventListener('click', () => {
+        els.csvInput.value = '';
+      });
+
+      els.csvFileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          els.csvInput.value = evt.target.result;
+        };
+        reader.readAsText(file);
+      });
     }
 
-    document.querySelector("#addBtn").addEventListener("click", () => openDialog());
-    document.querySelector("#exportBtn").addEventListener("click", exportCsv);
-    document.querySelector("#importBtn").addEventListener("click", importCsv);
-    els.csvFileInput.addEventListener("change", importCsvFile);
-    document.querySelector("#clearCsvBtn").addEventListener("click", () => {
-      els.csvInput.value = "";
-      els.csvFileInput.value = "";
-      els.csvInput.focus();
-    });
-    document.querySelector("#sampleBtn").addEventListener("click", () => {
-      records = sampleRecords.map((record) => ({ ...record, id: makeId() }));
-      saveRecords();
-      render();
-      showToast("Data contoh dimuatkan");
-    });
-    document.querySelector("#clearBtn").addEventListener("click", () => {
-      if (!confirm("Padam semua rekod dalam aplikasi ini?")) return;
-      records = [];
-      saveRecords();
-      render();
-      showToast("Semua rekod dipadam");
-    });
-    document.querySelector("#cancelDialogBtn").addEventListener("click", () => els.dialog.close());
-    els.form.addEventListener("submit", upsertRecord);
-    els.lookupForm.addEventListener("submit", (event) => {
-      event.preventDefault();
-      renderLookupResult(true);
-    });
-    els.search.addEventListener("input", () => renderLookupResult(false));
-    els.adminSearch.addEventListener("input", render);
-    els.classFilter.addEventListener("change", render);
-    document.querySelectorAll("[data-view]").forEach((button) => {
-      button.addEventListener("click", () => switchView(button.dataset.view));
-    });
-    els.themeBtn.addEventListener("click", () => {
-      document.body.classList.toggle("dark-mode");
-    });
-
-    saveRecords();
-    render();
+    // Start app
+    init();
   </script>
 </body>
 </html>
