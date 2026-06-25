@@ -1139,7 +1139,7 @@
         els.saveStatus.textContent = "Memuat data dari Google Sheet...";
 
         // Try to fetch from Google Sheet
-        const response = await fetch(GOOGLE_SHEET_URL);
+        const response = await fetch(GOOGLE_SHEET_);
         if (!response.ok) throw new Error("Failed to fetch");
 
         const csv = await response.text();
