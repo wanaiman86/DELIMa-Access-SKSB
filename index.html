@@ -1086,6 +1086,14 @@
     const sheetCsvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=0`;
     const sheetGvizUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq`;
     const sheetListUrl = `https://spreadsheets.google.com/feeds/worksheets/${sheetId}/public/basic`;
+    const defaultSheetNames = [
+      "1 BIJAK", "1 PINTAR",
+      "2 BIJAK", "2 PINTAR",
+      "3 BIJAK", "3 PINTAR",
+      "4 BIJAK", "4 PINTAR",
+      "5 BIJAK", "5 PINTAR",
+      "6 BIJAK", "6 PINTAR"
+    ];
     function makeId() {
       if (window.crypto && typeof window.crypto.randomUUID === "function") {
         return window.crypto.randomUUID();
@@ -1371,6 +1379,29 @@
       return normalize(value).replace(/[^a-z0-9]/g, "");
     }
 
+    function findColumn(headerKeys, keys) {
+      const wanted = keys.map(headerKey);
+      return wanted.map((key) => headerKeys.indexOf(key)).find((pos) => pos >= 0);
+    }
+
+    function getColumn(columns, index) {
+      return index >= 0 ? String(columns[index] || "").trim() : "";
+    }
+
+    function isClassLabel(value) {
+      const text = normalize(value).replace(/\s+/g, " ");
+      if (!text) return false;
+      return /^(kelas|tahun|darjah)\s*[0-9a-z]/.test(text)
+        || /^[1-6]\s*[a-z]/.test(text)
+        || /^[1-6]$/.test(text)
+        || /\b(bestari|cekal|damai|amanah|bijak|aktif|arif|maju|jaya)\b/.test(text);
+    }
+
+    function getFallbackClassName(value) {
+      const text = String(value || "").trim();
+      return isClassLabel(text) ? text : "";
+    }
+
     function parseCsvText(text, fallbackClassName = "") {
       const lines = String(text || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
       if (lines.length === 0) {
@@ -1380,32 +1411,46 @@
       const headerKeys = header.map(headerKey);
       const hasHeader = ["nama", "name", "namamurid"].some((key) => headerKeys.includes(key));
       const dataLines = hasHeader ? lines.slice(1) : lines;
-      const imported = dataLines.map((line) => {
+      const usableFallbackClassName = getFallbackClassName(fallbackClassName);
+      let currentClassName = usableFallbackClassName;
+      const imported = [];
+      dataLines.forEach((line) => {
         const columns = parseCsvLine(line);
+        const filledColumns = columns.filter(Boolean);
+        if (filledColumns.length <= 2 && isClassLabel(filledColumns[0])) {
+          currentClassName = filledColumns[0];
+          return;
+        }
+        let record;
         if (hasHeader) {
-          const valueAt = (...keys) => {
-            const wanted = keys.map(headerKey);
-            const index = wanted.map((key) => headerKeys.indexOf(key)).find((pos) => pos >= 0);
-            return index >= 0 ? columns[index] : "";
-          };
-          return {
+          const nameIndex = findColumn(headerKeys, ["nama", "name", "nama murid", "nama penuh", "namapenuh"]);
+          const classIndex = findColumn(headerKeys, ["kelas", "class", "className", "tahun", "darjah", "kelas murid", "kelasterkini", "kelas2026", "tahunkelas"]);
+          const delimaIndex = findColumn(headerKeys, ["id_delima", "delima", "delimaid", "id delima", "iddelima", "emel delima", "email delima", "email"]);
+          const mykidIndex = findColumn(headerKeys, ["mykid", "no_mykid", "nombor mykid", "no kp", "nokp", "kad pengenalan", "nombor kad pengenalan", "ic", "nric"]);
+          const noteIndex = findColumn(headerKeys, ["catatan", "note", "nota", "kata laluan", "katalaluan", "password", "pass"]);
+          const classValue = getColumn(columns, classIndex);
+          if (classValue) currentClassName = classValue;
+          record = {
             id: makeId(),
-            name: valueAt("nama", "name", "nama murid", "nama penuh"),
-            className: valueAt("kelas", "class", "className", "tahun") || fallbackClassName,
-            delimaId: valueAt("id_delima", "delima", "delimaid", "id delima", "iddelima", "emel delima", "email delima"),
-            mykid: valueAt("mykid", "no_mykid", "nombor mykid", "no kp", "nokp", "kad pengenalan", "nombor kad pengenalan", "ic", "nric"),
-            note: valueAt("catatan", "note", "nota", "kata laluan", "katalaluan", "password", "pass")
+            name: getColumn(columns, nameIndex),
+            className: classValue || currentClassName,
+            delimaId: getColumn(columns, delimaIndex),
+            mykid: getColumn(columns, mykidIndex),
+            note: getColumn(columns, noteIndex)
+          };
+        } else {
+          if (isClassLabel(columns[1])) currentClassName = columns[1].trim();
+          record = {
+            id: makeId(),
+            name: columns[0] || "",
+            className: columns[1] || currentClassName,
+            delimaId: columns[2] || "",
+            mykid: columns[3] || "",
+            note: columns[4] || ""
           };
         }
-        return {
-          id: makeId(),
-          name: columns[0] || "",
-          className: columns[1] || fallbackClassName,
-          delimaId: columns[2] || "",
-          mykid: columns[3] || "",
-          note: columns[4] || ""
-        };
-      }).filter((record) => record.name && record.className && record.delimaId);
+        if (record.name && record.className && record.delimaId) imported.push(record);
+      });
       return imported;
     }
 
@@ -1430,7 +1475,8 @@
         records = imported;
         saveRecords();
         render();
-        els.sheetStatus.textContent = `Google Sheets aktif: ${imported.length} rekod dimuat`;
+        const classCount = new Set(imported.map((record) => record.className).filter(Boolean)).size;
+        els.sheetStatus.textContent = `Google Sheets aktif: ${imported.length} rekod, ${classCount} kelas dimuat`;
         if (showSuccess) showToast(`${imported.length} rekod Google Sheets dimuat`);
       } catch (error) {
         els.sheetStatus.textContent = "Google Sheets belum dapat dimuat. Pastikan pautan dikongsi sebagai Viewer.";
@@ -1442,7 +1488,7 @@
 
     async function readSheetRecords() {
       try {
-        const sheets = await readSheetListWithScript();
+        const sheets = uniqueSheetNames([...(await readSheetListWithScript()), ...defaultSheetNames]);
         if (sheets.length > 1) {
           const groups = await Promise.allSettled(sheets.map((sheetName) => readSheetRecordsWithScript(sheetName)));
           const merged = groups
@@ -1458,6 +1504,19 @@
       } catch {
         return readSheetRecordsWithScript();
       }
+    }
+
+    function uniqueSheetNames(items) {
+      const seen = new Set();
+      return items
+        .map((item) => String(item || "").trim())
+        .filter(Boolean)
+        .filter((item) => {
+          const key = normalize(item);
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
     }
 
     function uniqueRecords(items) {
